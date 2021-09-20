@@ -16,3 +16,7 @@ The installer does not include an uninstaller, so to uninstall, run the line bel
 ![Screenshot](https://raw.githubusercontent.com/brianbaldner/ValorantStatus/master/img/shot1.png)
 
 ![Screenshot](https://raw.githubusercontent.com/brianbaldner/ValorantStatus/master/img/shot2.png)
+
+# Contribution
+
+Please fork and add whatever you want. Please pull request though, instead of distributing yourself. All of the code is in /ValorantStatus/MainWindow.xaml.cs and I added tons of comments to help.
