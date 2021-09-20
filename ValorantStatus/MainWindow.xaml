@@ -8,7 +8,7 @@
     Title="MainWindow"
     Width="800"
     Height="450"
-    Loaded="Window_Loaded"
+    Loaded="MainScript"
     ShowInTaskbar="False"
     WindowState="Minimized"
     mc:Ignorable="d">

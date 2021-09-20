@@ -3,7 +3,6 @@ using System.Windows;
 using ValAPINet;
 using DiscordRPC;
 using System.Diagnostics;
-using Hardcodet.Wpf.TaskbarNotification;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
@@ -22,17 +21,230 @@ namespace ValorantRPC
     {
 
         public DiscordRpcClient rpcclient;
+        public string RiotPath = "Riot Client\\RiotClientServices.exe";
+        //Auth doesn't need to be updated
         public Auth auth;
+
+        //Does stuff that the async function didn't like
         public MainWindow()
         {
             InitializeComponent();
             icon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetEntryAssembly().ManifestModule.Name);
+            //Gets Riot Client Location
+            string filepath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\Riot Games\\Metadata\\valorant.live\\valorant.live.product_settings.yaml";
+            string data = File.ReadAllText(filepath);
+            //The last thing I would ever do is install a package
+            string path = data.Split("product_install_root: \"")[1].Split("\"")[0];
             Process p = new Process();
-            p.StartInfo.FileName = "C:\\Riot Games\\Riot Client\\RiotClientServices.exe";
+            p.StartInfo.FileName = path + RiotPath;
             p.StartInfo.Arguments = "--launch-product=valorant --launch-patchline=live";
             p.Start();
         }
 
+        //The meat of the script
+        private async void MainScript(object sender, RoutedEventArgs e)
+        {
+            Hide();
+
+            //ValAPI.Net for documentation
+            auth = Websocket.GetAuthLocal();
+            
+            //Discord RPC Stuff
+            rpcclient = new DiscordRpcClient(ConfigurationManager.AppSettings.Get("DiscordKey"));
+            rpcclient.SkipIdenticalPresence = true;
+            rpcclient.RegisterUriScheme();
+            rpcclient.OnJoin += Rpcclient_OnJoin;
+            rpcclient.OnJoinRequested += Rpcclient_OnJoinRequested;
+            rpcclient.Initialize();
+
+            //So I can do title case
+            TextInfo myTI = new CultureInfo("en-US", false).TextInfo;
+
+            //In task so I can update icon's menu
+            await Task.Run(async () =>
+            {
+                Process[] started = new Process[0];
+                //Waits until game has started, checks every 3 sec
+                while (started.Length == 0)
+                {
+                    started = Process.GetProcessesByName("VALORANT-Win64-Shipping");
+                    await Task.Delay(3000);
+                }
+
+                //Until break
+                while (1 == 1)
+                {
+                    //ValAPI.Net
+                    UserPresence.Presence presence = UserPresence.GetPresence(auth.subject);
+
+                    //Checks for Discord events
+                    rpcclient.Invoke();
+
+                    //If presence hasn't started or in menus
+                    if (presence == null || presence.privinfo.sessionLoopState == "MENUS")
+                    {
+                        //If game closed, stop the program
+                        Process[] pname = Process.GetProcessesByName("VALORANT-Win64-Shipping");
+                        if (pname.Length == 0)
+                        {
+                            break;
+                        }
+
+                        //If party is open
+                        if (presence != null && presence.privinfo.partyAccessibility == "OPEN")
+                        {
+                            //If looking for match
+                            if (presence.privinfo.partyState == "MATCHMAKING")
+                            {
+                                rpcclient.SetPresence(new RichPresence()
+                                {
+                                    Details = "Menus",
+                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)})",
+                                    Assets = new Assets()
+                                    {
+                                        LargeImageKey = "logo"
+                                    },
+                                    Party = new Party
+                                    {
+                                        ID = presence.privinfo.partyId,
+                                        Max = presence.privinfo.maxPartySize,
+                                        Privacy = Party.PrivacySetting.Public,
+                                        Size = presence.privinfo.partySize
+                                    },
+                                    Secrets = new Secrets()
+                                    {
+                                        JoinSecret = Secure.encrypt(presence.privinfo.partyId),
+                                        SpectateSecret = "1dfdfgdfgsfdgdfgsdf"
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                //If not waiting in match
+                                rpcclient.SetPresence(new RichPresence()
+                                {
+                                    Details = "Menus",
+                                    State = $"Waiting ({myTI.ToTitleCase(presence.privinfo.queueId)})",
+                                    Assets = new Assets()
+                                    {
+                                        LargeImageKey = "logo"
+                                    },
+                                    Party = new Party
+                                    {
+                                        ID = presence.privinfo.partyId,
+                                        Max = presence.privinfo.maxPartySize,
+                                        Privacy = Party.PrivacySetting.Private,
+                                        Size = presence.privinfo.partySize
+                                    },
+                                    Secrets = new Secrets()
+                                    {
+                                        JoinSecret = Secure.encrypt(presence.privinfo.partyId),
+                                        SpectateSecret = "1dfdfgdfgsfdgdfgsdf"
+                                    }
+                                });
+                            }
+                        }
+                        else if (presence != null)
+                        {
+                            //If matchmaking and party is closed
+                            if (presence.privinfo.partyState == "MATCHMAKING")
+                            {
+                                rpcclient.SetPresence(new RichPresence()
+                                {
+                                    Details = "Menus",
+                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)})",
+                                    Assets = new Assets()
+                                    {
+                                        LargeImageKey = "logo"
+                                    },
+                                    Party = new Party
+                                    {
+                                        ID = presence.privinfo.partyId,
+                                        Max = presence.privinfo.maxPartySize,
+                                        Privacy = Party.PrivacySetting.Private,
+                                        Size = presence.privinfo.partySize
+                                    },
+                                    Secrets = null
+                                });
+                            }
+                            else
+                            {
+                                //If waiting and party is private
+                                rpcclient.SetPresence(new RichPresence()
+                                {
+                                    Details = "Menus",
+                                    State = $"Waiting ({myTI.ToTitleCase(presence.privinfo.queueId)})",
+                                    Assets = new Assets()
+                                    {
+                                        LargeImageKey = "logo"
+                                    },
+                                    Party = new Party
+                                    {
+                                        ID = presence.privinfo.partyId,
+                                        Max = presence.privinfo.maxPartySize,
+                                        Privacy = Party.PrivacySetting.Private,
+                                        Size = presence.privinfo.partySize
+                                    },
+                                    Secrets = null
+                                });
+                            }
+                        }
+                        //While in menus, update every 5 sec
+                        await Task.Delay(5000);
+                    }
+                    else
+                    {
+                        //One size fits all in game presence
+                        rpcclient.SetPresence(new RichPresence()
+                        {
+                            Details = "Playing " + myTI.ToTitleCase(presence.privinfo.queueId) + " on " + GetMapName(presence.privinfo.matchMap),
+                            State = presence.privinfo.partyOwnerMatchScoreAllyTeam + "-" + presence.privinfo.partyOwnerMatchScoreEnemyTeam,
+                            Assets = new Assets()
+                            {
+                                LargeImageKey = GetMapName(presence.privinfo.matchMap).ToLower().Replace(" ", "_"),
+                                LargeImageText = GetMapName(presence.privinfo.matchMap)
+                            },
+                            Party = new Party
+                            {
+                                ID = presence.privinfo.partyId,
+                                Max = presence.privinfo.maxPartySize,
+                                Privacy = Party.PrivacySetting.Private,
+                                Size = presence.privinfo.partySize
+                            },
+                            Timestamps = new Timestamps()
+                            {
+                                Start = null
+                            },
+                            Secrets = new Secrets()
+                            {
+                                JoinSecret = null,
+                                SpectateSecret = null
+                            }
+                        });
+                        //When in match, update every 10 sec
+                        await Task.Delay(10000);
+                    }
+                }
+            });
+            Quit();
+        }
+
+        //If someone presses "Ask to Join" on profile
+        private void Rpcclient_OnJoinRequested(object sender, DiscordRPC.Message.JoinRequestMessage args)
+        {
+            DiscordRpcClient client = (DiscordRpcClient)sender;
+            MessageBoxResult result = MessageBox.Show($"{args.User.Username} would like to join your party.", "ValorantStatus", MessageBoxButton.YesNo);
+            switch (result)
+            {
+                case MessageBoxResult.Yes:
+                    client.Respond(args, true);
+                    break;
+                case MessageBoxResult.No:
+                    client.Respond(args, false);
+                    break;
+            }
+        }
+        //If someone accepts Discord invite or you approve them
         private void Rpcclient_OnJoin(object sender, DiscordRPC.Message.JoinMessage args)
         {
             string partyid = Secure.Decrypt(args.Secret);
@@ -46,6 +258,7 @@ namespace ValorantRPC
             IRestResponse postResp = postClient.Post(postRequest);
         }
 
+        //Should prob change to dictionary
         public string GetMapName(string mapid)
         {
             if (mapid == "/Game/Maps/Ascent/Ascent")
@@ -78,6 +291,7 @@ namespace ValorantRPC
             }
             return null;
         }
+        //Same as above
         public static string GetModeName(string mode)
         {
             if (mode == "/Game/GameModes/Bomb/BombGameMode.BombGameMode_C")
@@ -102,17 +316,20 @@ namespace ValorantRPC
             }
             return null;
         }
+        //Stops the rpc, removes the icon, and shuts down
         public void Quit()
         {
             rpcclient.Deinitialize();
             icon.Visibility = Visibility.Collapsed;
             Environment.Exit(0);
         }
-
+        //If user presses quit
         private void MenuItem_Click(object sender, RoutedEventArgs e)
         {
             Quit();
         }
+
+        //AES encryption because Discord said so
         public class Secure
         {
             public static string encrypt(string encryptString)
@@ -165,180 +382,10 @@ namespace ValorantRPC
             }
         }
 
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            Hide();
-            auth = Websocket.GetAuthLocal();
-            rpcclient = new DiscordRpcClient(ConfigurationManager.AppSettings.Get("DiscordKey"));
-            rpcclient.SkipIdenticalPresence = true;
-            rpcclient.RegisterUriScheme();
-            rpcclient.OnJoin += Rpcclient_OnJoin;
-            rpcclient.OnJoinRequested += Rpcclient_OnJoinRequested;
-            rpcclient.Initialize();
-            TextInfo myTI = new CultureInfo("en-US", false).TextInfo;
-            await Task.Run(async () =>
-            {
-                Process[] started = new Process[0];
-                while (started.Length == 0)
-                {
-                    started = Process.GetProcessesByName("VALORANT-Win64-Shipping");
-                    await Task.Delay(3000);
-                }
-                while (1 == 1)
-                {
-                    UserPresence.Presence presence = UserPresence.GetPresence(auth.subject);
-                    rpcclient.Invoke();
-                    if (presence == null || presence.privinfo.sessionLoopState == "MENUS")
-                    {
-                        Process[] pname = Process.GetProcessesByName("VALORANT-Win64-Shipping");
-                        if (pname.Length == 0)
-                        {
-                            break;
-                        }
-                        if (presence != null && presence.privinfo.partyAccessibility == "OPEN")
-                        {
-                            if (presence.privinfo.partyState == "MATCHMAKING")
-                            {
-                                rpcclient.SetPresence(new RichPresence()
-                                {
-                                    Details = "Menus",
-                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)})",
-                                    Assets = new Assets()
-                                    {
-                                        LargeImageKey = "logo"
-                                    },
-                                    Party = new Party
-                                    {
-                                        ID = presence.privinfo.partyId,
-                                        Max = presence.privinfo.maxPartySize,
-                                        Privacy = Party.PrivacySetting.Public,
-                                        Size = presence.privinfo.partySize
-                                    },
-                                    Secrets = new Secrets()
-                                    {
-                                        JoinSecret = Secure.encrypt(presence.privinfo.partyId),
-                                        SpectateSecret = "1dfdfgdfgsfdgdfgsdf"
-                                    }
-                                });
-                            }
-                            else
-                            {
-                                rpcclient.SetPresence(new RichPresence()
-                                {
-                                    Details = "Menus",
-                                    State = $"Waiting ({myTI.ToTitleCase(presence.privinfo.queueId)})",
-                                    Assets = new Assets()
-                                    {
-                                        LargeImageKey = "logo"
-                                    },
-                                    Party = new Party
-                                    {
-                                        ID = presence.privinfo.partyId,
-                                        Max = presence.privinfo.maxPartySize,
-                                        Privacy = Party.PrivacySetting.Private,
-                                        Size = presence.privinfo.partySize
-                                    },
-                                    Secrets = new Secrets()
-                                    {
-                                        JoinSecret = Secure.encrypt(presence.privinfo.partyId),
-                                        SpectateSecret = "1dfdfgdfgsfdgdfgsdf"
-                                    }
-                                });
-                            }
-                        }
-                        else if(presence != null)
-                        {
-                            if (presence.privinfo.partyState == "MATCHMAKING")
-                            {
-                                rpcclient.SetPresence(new RichPresence()
-                                {
-                                    Details = "Menus",
-                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)})",
-                                    Assets = new Assets()
-                                    {
-                                        LargeImageKey = "logo"
-                                    },
-                                    Party = new Party
-                                    {
-                                        ID = presence.privinfo.partyId,
-                                        Max = presence.privinfo.maxPartySize,
-                                        Privacy = Party.PrivacySetting.Private,
-                                        Size = presence.privinfo.partySize
-                                    },
-                                    Secrets = null
-                                });
-                            }
-                            else
-                            {
-                                rpcclient.SetPresence(new RichPresence()
-                                {
-                                    Details = "Menus",
-                                    State = $"Waiting ({myTI.ToTitleCase(presence.privinfo.queueId)})",
-                                    Assets = new Assets()
-                                    {
-                                        LargeImageKey = "logo"
-                                    },
-                                    Party = new Party
-                                    {
-                                        ID = presence.privinfo.partyId,
-                                        Max = presence.privinfo.maxPartySize,
-                                        Privacy = Party.PrivacySetting.Private,
-                                        Size = presence.privinfo.partySize
-                                    },
-                                    Secrets = null
-                                });
-                            }
-                        }
-                        await Task.Delay(5000);
-                    }
-                    else
-                    {
-                        rpcclient.SetPresence(new RichPresence()
-                        {
-                            Details = "Playing " + myTI.ToTitleCase(presence.privinfo.queueId) + " on " + GetMapName(presence.privinfo.matchMap),
-                            State = presence.privinfo.partyOwnerMatchScoreAllyTeam + "-" + presence.privinfo.partyOwnerMatchScoreEnemyTeam,
-                            Assets = new Assets()
-                            {
-                                LargeImageKey = GetMapName(presence.privinfo.matchMap).ToLower().Replace(" ", "_"),
-                                LargeImageText = GetMapName(presence.privinfo.matchMap)
-                            },
-                            Party = new Party
-                            {
-                                ID = presence.privinfo.partyId,
-                                Max = presence.privinfo.maxPartySize,
-                                Privacy = Party.PrivacySetting.Private,
-                                Size = presence.privinfo.partySize
-                            },
-                            Timestamps = new Timestamps()
-                            {
-                                Start = null
-                            },
-                            Secrets = new Secrets()
-                            {
-                                JoinSecret = null,
-                                SpectateSecret = null
-                            }
-                        });
-                        await Task.Delay(10000);
-                    }
-                }
-            });
-            Quit();
-        }
-
-        private void Rpcclient_OnJoinRequested(object sender, DiscordRPC.Message.JoinRequestMessage args)
-        {
-            DiscordRpcClient client = (DiscordRpcClient)sender;
-            MessageBoxResult result = MessageBox.Show($"{args.User.Username} would like to join your party.", "ValorantStatus", MessageBoxButton.YesNo);
-            switch (result)
-            {
-                case MessageBoxResult.Yes:
-                    client.Respond(args, true);
-                    break;
-                case MessageBoxResult.No:
-                    client.Respond(args, false);
-                    break;
-            }
-        }
+        
+    }
+    public class yamlstuff
+    {
+        public string product_install_root;
     }
 }
