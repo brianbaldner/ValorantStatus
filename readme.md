@@ -11,3 +11,8 @@ If you have any feature requests, message bigtaco#4277 on Discord.
 The installer does not include an uninstaller, so to uninstall, run the line below in a command prompt with admin priveliges to remove the folder.
 
 `rmdir /s "C:\Program Files (x86)\ValorantStatus"`
+# Screenshots
+
+![Screenshot](https://raw.githubusercontent.com/brianbaldner/ValorantStatus/master/img/shot1.png)
+
+![Screenshot](https://raw.githubusercontent.com/brianbaldner/ValorantStatus/master/img/shot2.png)

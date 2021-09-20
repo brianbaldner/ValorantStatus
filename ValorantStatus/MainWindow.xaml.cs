@@ -253,7 +253,7 @@ namespace ValorantRPC
                                 rpcclient.SetPresence(new RichPresence()
                                 {
                                     Details = "Menus",
-                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)}",
+                                    State = $"Searching ({myTI.ToTitleCase(presence.privinfo.queueId)})",
                                     Assets = new Assets()
                                     {
                                         LargeImageKey = "logo"
