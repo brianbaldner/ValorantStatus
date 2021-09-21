@@ -201,16 +201,9 @@ namespace ValorantRPC
                     }
                     else
                     {
-                        if (mapName == null)
-                        {
-                            mapName = "/Game/Maps/Poveglia/Range";
-                        }
-                        if (presence.privinfo.provisioningFlow == "ShootingRange")
-                        {
-                            gameMode = "Shooting Range";
-                        }
-                        Console.WriteLine(mapName);
-                        Console.WriteLine(gameMode);
+                        if (mapName == null) mapName = "/Game/Maps/Poveglia/Range";
+                        if (presence.privinfo.provisioningFlow == "ShootingRange") gameMode = "Shooting Range";
+
                         //One size fits all in game presence
                         rpcclient.SetPresence(new RichPresence()
                         {
@@ -336,7 +329,7 @@ namespace ValorantRPC
                     displayName = "Shooting Range";
                     break;
                 default:
-                    displayName = "Unknwon Mode";
+                    displayName = "Unknown Mode";
                     break;
             }
             return displayName;
