@@ -24,6 +24,8 @@ namespace ValorantRPC
         public string RiotPath = "Riot Client\\RiotClientServices.exe";
         //Auth doesn't need to be updated
         public Auth auth;
+        public string mapName;
+        public string gameMode;
 
         //Does stuff that the async function didn't like
         public MainWindow()
@@ -48,8 +50,10 @@ namespace ValorantRPC
 
             //ValAPI.Net for documentation
             auth = Websocket.GetAuthLocal();
-            
+
             //Discord RPC Stuff
+
+            //rpcclient = new DiscordRpcClient("Application ID");
             rpcclient = new DiscordRpcClient(ConfigurationManager.AppSettings.Get("DiscordKey"));
             rpcclient.SkipIdenticalPresence = true;
             rpcclient.RegisterUriScheme();
@@ -72,7 +76,7 @@ namespace ValorantRPC
                 }
 
                 //Until break
-                while (1 == 1)
+                while (true)
                 {
                     //ValAPI.Net
                     UserPresence.Presence presence = UserPresence.GetPresence(auth.subject);
@@ -93,6 +97,9 @@ namespace ValorantRPC
                         //If party is open
                         if (presence != null && presence.privinfo.partyAccessibility == "OPEN")
                         {
+                            //Get match map and real mode from presence
+                            mapName = presence.privinfo.matchMap;
+                            gameMode = presence.privinfo.queueId;
                             //If looking for match
                             if (presence.privinfo.partyState == "MATCHMAKING")
                             {
@@ -194,15 +201,18 @@ namespace ValorantRPC
                     }
                     else
                     {
+                        if (mapName == null) mapName = "/Game/Maps/Poveglia/Range";
+                        if (presence.privinfo.provisioningFlow == "ShootingRange") gameMode = "Shooting Range";
+
                         //One size fits all in game presence
                         rpcclient.SetPresence(new RichPresence()
                         {
-                            Details = "Playing " + myTI.ToTitleCase(presence.privinfo.queueId) + " on " + GetMapName(presence.privinfo.matchMap),
+                            Details = "Playing " + myTI.ToTitleCase(gameMode) + " on " + GetMapName(mapName),
                             State = presence.privinfo.partyOwnerMatchScoreAllyTeam + "-" + presence.privinfo.partyOwnerMatchScoreEnemyTeam,
                             Assets = new Assets()
                             {
-                                LargeImageKey = GetMapName(presence.privinfo.matchMap).ToLower().Replace(" ", "_"),
-                                LargeImageText = GetMapName(presence.privinfo.matchMap)
+                                LargeImageKey = GetMapName(mapName).ToLower().Replace(" ", "_"),
+                                LargeImageText = GetMapName(mapName)
                             },
                             Party = new Party
                             {
@@ -261,60 +271,69 @@ namespace ValorantRPC
         //Should prob change to dictionary
         public string GetMapName(string mapid)
         {
-            if (mapid == "/Game/Maps/Ascent/Ascent")
+            string displayName;
+            switch (mapid)
             {
-                return "Ascent";
+                case "/Game/Maps/Ascent/Ascent":
+                    displayName = "Ascent";
+                    break;
+                case "/Game/Maps/Bonsai/Bonsai":
+                    displayName = "Split";
+                    break;
+                case "/Game/Maps/Duality/Duality":
+                    displayName = "Bind";
+                    break;
+                case "/Game/Maps/Port/Port":
+                    displayName = "Icebox";
+                    break;
+                case "/Game/Maps/Triad/Triad":
+                    displayName = "Haven";
+                    break;
+                case "/Game/Maps/Foxtrot/Foxtrot":
+                    displayName = "Breeze";
+                    break;
+                case "/Game/Maps/Canyon/Canyon":
+                    displayName = "Fracture";
+                    break;
+                case "/Game/Maps/Poveglia/Range":
+                    displayName = "The Range";
+                    break;
+                default:
+                    displayName = "Unknown Map";
+                    break;
             }
-            else if (mapid == "/Game/Maps/Bonsai/Bonsai")
-            {
-                return "Split";
-            }
-            else if (mapid == "/Game/Maps/Duality/Duality")
-            {
-                return "Bind";
-            }
-            else if (mapid == "/Game/Maps/Port/Port")
-            {
-                return "Icebox";
-            }
-            else if (mapid == "/Game/Maps/Triad/Triad")
-            {
-                return "Haven";
-            }
-            else if (mapid == "/Game/Maps/Foxtrot/Foxtrot")
-            {
-                return "Breeze";
-            }
-            else if (mapid == "/Game/Maps/Canyon/Canyon")
-            {
-                return "Fracture";
-            }
-            return null;
+            return displayName;
         }
         //Same as above
         public static string GetModeName(string mode)
         {
-            if (mode == "/Game/GameModes/Bomb/BombGameMode.BombGameMode_C")
+            string displayName;
+            switch(mode)
             {
-                return "Standard";
+                case "/Game/GameModes/Bomb/BombGameMode.BombGameMode_C":
+                    displayName = "Standard";
+                    break;
+                case "/Game/GameModes/Deathmatch/DeathmatchGameMode.DeathmatchGameMode_C":
+                    displayName = "Deathmatch";
+                    break;
+                case "/Game/GameModes/GunGame/GunGameTeamsGameMode.GunGameTeamsGameMode_C":
+                    displayName = "Escalation";
+                    break;
+                case "/Game/GameModes/OneForAll/OneForAll_GameMode.OneForAll_GameMode_C":
+                    displayName = "Replication";
+                    break;
+                case "/Game/GameModes/QuickBomb/QuickBombGameMode.QuickBombGameMode_C":
+                    displayName = "Spike Rush";
+                    break;
+                case "/Game/GameModes/ShootingRange/ShootingRangeGameMode.ShootingRangeGameMode_C":
+                    displayName = "Shooting Range";
+                    break;
+                default:
+                    displayName = "Unknown Mode";
+                    break;
             }
-            else if (mode == "/Game/GameModes/Deathmatch/DeathmatchGameMode.DeathmatchGameMode_C")
-            {
-                return "Deathmatch";
-            }
-            else if (mode == "/Game/GameModes/GunGame/GunGameTeamsGameMode.GunGameTeamsGameMode_C")
-            {
-                return "Escalation";
-            }
-            else if (mode == "/Game/GameModes/OneForAll/OneForAll_GameMode.OneForAll_GameMode_C")
-            {
-                return "Replication";
-            }
-            else if (mode == "/Game/GameModes/QuickBomb/QuickBombGameMode.QuickBombGameMode_C")
-            {
-                return "Spike Rush";
-            }
-            return null;
+            return displayName;
+            
         }
         //Stops the rpc, removes the icon, and shuts down
         public void Quit()
