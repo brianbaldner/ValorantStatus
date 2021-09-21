@@ -1,4 +1,7 @@
 # ValorantStatus
+
+![GitHub all releases](https://img.shields.io/github/downloads/brianbaldner/valorantstatus/total)
+
 ### Best RPC client for Valorant
 ValorantStatus is the best RPC client for Valorant. Great for performance, and full party features make this the best client to use. Party features are avalable for open parties only.
 # [Download the installer](https://github.com/brianbaldner/ValorantStatus/releases/latest/download/ValorantStatusInstall.exe)
