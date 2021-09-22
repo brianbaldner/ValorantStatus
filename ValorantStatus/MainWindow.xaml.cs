@@ -11,6 +11,7 @@ using System.Text;
 using RestSharp;
 using System.Globalization;
 using System.Configuration;
+using System.Threading;
 
 namespace ValorantRPC
 {
@@ -31,6 +32,7 @@ namespace ValorantRPC
         public MainWindow()
         {
             InitializeComponent();
+            this.Dispatcher.UnhandledException += Dispatcher_UnhandledException; ;
             icon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetEntryAssembly().ManifestModule.Name);
             //Gets Riot Client Location
             string filepath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\Riot Games\\Metadata\\valorant.live\\valorant.live.product_settings.yaml";
@@ -41,6 +43,25 @@ namespace ValorantRPC
             p.StartInfo.FileName = path + RiotPath;
             p.StartInfo.Arguments = "--launch-product=valorant --launch-patchline=live";
             p.Start();
+        }
+
+        private void Dispatcher_UnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+        {
+            if (e.Exception == null)
+            {
+                Application.Current.Shutdown();
+                return;
+            }
+            string errorMessage = string.Format("An application error occurred. If this error occurs again there seems to be a serious bug in the application, and you better close it.\n\nError:{0}\n\nDo you want to continue?\n(if you click Yes you will continue with your work, if you click No the application will close)", e.Exception.Message);
+            //insert code to log exception here
+            if (MessageBox.Show(errorMessage, "Application User Interface Error", MessageBoxButton.YesNoCancel, MessageBoxImage.Error) == MessageBoxResult.No)
+            {
+                if (MessageBox.Show("WARNING: The application will close. Any changes will not be saved!\nDo you really want to close it?", "Close the application!", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                {
+                    Application.Current.Shutdown();
+                }
+            }
+            e.Handled = true;
         }
 
         //The meat of the script
@@ -60,6 +81,16 @@ namespace ValorantRPC
             rpcclient.OnJoin += Rpcclient_OnJoin;
             rpcclient.OnJoinRequested += Rpcclient_OnJoinRequested;
             rpcclient.Initialize();
+            rpcclient.SetPresence(new RichPresence()
+            {
+                Details = "Logging into Valorant",
+                State = $"Using ValorantStatus",
+                Assets = new Assets()
+                {
+                    LargeImageKey = "logo"
+                },
+                Buttons = new Button[] {new Button() { Label="ValorantStatus", Url= "https://github.com/brianbaldner/ValorantStatus" } }
+            });
 
             //So I can do title case
             TextInfo myTI = new CultureInfo("en-US", false).TextInfo;
@@ -83,6 +114,12 @@ namespace ValorantRPC
 
                     //Checks for Discord events
                     rpcclient.Invoke();
+                    if (presence != null)
+                    {
+                        if(presence.privinfo.matchMap != "")
+                            mapName = presence.privinfo.matchMap;
+                        gameMode = presence.privinfo.queueId;
+                    }
 
                     //If presence hasn't started or in menus
                     if (presence == null || presence.privinfo.sessionLoopState == "MENUS")
@@ -98,8 +135,7 @@ namespace ValorantRPC
                         if (presence != null && presence.privinfo.partyAccessibility == "OPEN")
                         {
                             //Get match map and real mode from presence
-                            mapName = presence.privinfo.matchMap;
-                            gameMode = presence.privinfo.queueId;
+                            
                             //If looking for match
                             if (presence.privinfo.partyState == "MATCHMAKING")
                             {
@@ -201,9 +237,11 @@ namespace ValorantRPC
                     }
                     else
                     {
-                        if (mapName == null) mapName = "/Game/Maps/Poveglia/Range";
-                        if (presence.privinfo.provisioningFlow == "ShootingRange") gameMode = "Shooting Range";
-
+                        if (presence.privinfo.provisioningFlow == "ShootingRange")
+                        {
+                            gameMode = "Shooting Range";
+                            mapName = "/Game/Maps/Poveglia/Range";
+                        }
                         //One size fits all in game presence
                         rpcclient.SetPresence(new RichPresence()
                         {
@@ -299,7 +337,8 @@ namespace ValorantRPC
                     displayName = "The Range";
                     break;
                 default:
-                    displayName = "Unknown Map";
+                    displayName = mapid;
+                    //displayName = "Unknown Map";
                     break;
             }
             return displayName;
