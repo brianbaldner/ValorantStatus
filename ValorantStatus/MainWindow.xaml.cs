@@ -70,7 +70,6 @@ namespace ValorantRPC
             Hide();
 
             //ValAPI.Net for documentation
-            auth = Websocket.GetAuthLocal();
 
             //Discord RPC Stuff
 
@@ -105,7 +104,7 @@ namespace ValorantRPC
                     started = Process.GetProcessesByName("VALORANT-Win64-Shipping");
                     await Task.Delay(3000);
                 }
-
+                auth = Websocket.GetAuthLocal();
                 //Until break
                 while (true)
                 {
